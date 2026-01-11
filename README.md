@@ -1,4 +1,6 @@
 # Tiny2D
+[Itch.io](https://arestudio.itch.io/tiny2d)
+
 English:
 
 P.S.: Don't export as PNG. After opening the file explorer, renaming the file to BMP and saving it won't work for Tiny2D. You have to export to PNG and then convert it. A strange but useful example is to use Paint to import the image and then export it.​
