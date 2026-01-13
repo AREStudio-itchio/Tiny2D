@@ -85,6 +85,21 @@ float RandFloatRange(float min, float max);
 void DrawBitmap(HBITMAP bmp, int x, int y);
 void DrawBitmapScaled(HBITMAP bmp, int x, int y, int w, int h);
 
+static bool ExtractResourceToFile(const char* resourceName, const char* outPath) {
+    HRSRC hRes = FindResourceA(GetModuleHandleA(NULL), resourceName, (LPCSTR)RT_RCDATA);
+    if (!hRes) return false;
+    
+    HGLOBAL hData = LoadResource(GetModuleHandleA(NULL), hRes);
+    void* pData = LockResource(hData);
+    DWORD size = SizeofResource(GetModuleHandleA(NULL), hRes);
+
+    FILE* f = fopen(outPath, "wb");
+    if (!f) return false;
+    fwrite(pData, 1, size, f);
+    fclose(f);
+    return true;
+}
+
 int RandIntRange(int min, int max) {
     if (min > max) return min;
     return min + (rand() % (max - min + 1));
@@ -247,23 +262,45 @@ bool IsFullscreen() {
     return isFullscreen;
 }
 
+void PlaySoundFromResource(const char* resourceName, int volume /* ignorado aquí */, bool loop) {
+    HRSRC hRes = FindResourceA(NULL, resourceName, (LPCSTR)RT_RCDATA);
+    if (!hRes) return;
+
+    HGLOBAL hData = LoadResource(NULL, hRes);
+    void* pData = LockResource(hData);
+    DWORD size = SizeofResource(NULL, hRes);
+
+    // Bandera de loop
+    DWORD flags = SND_MEMORY | SND_ASYNC;
+    if (loop) flags |= SND_LOOP;
+
+    // Reproduce directamente desde memoria
+    PlaySoundA((LPCSTR)pData, NULL, flags);
+}
+
 // 1. Reproducir (Soporta MP3 y WAV)
 void PlaySound2D(const char* path, int volume, bool loop) {
     char cmd[512];
-    // Abrimos el archivo con un alias (el alias será la ruta sin espacios)
-    snprintf(cmd, sizeof(cmd), "open \"%s\" type mpegvideo alias \"%s\"", path, path);
+    
+    // 1. Cerramos por si ya estaba abierto (evita errores al re-reproducir)
+    snprintf(cmd, sizeof(cmd), "close \"%s\"", path);
     mciSendStringA(cmd, NULL, 0, NULL);
 
-    // Ajustar volumen (MCI va de 0 a 1000)
+    // 2. Abrir el archivo físico
+    snprintf(cmd, sizeof(cmd), "open \"%s\" type mpegvideo alias \"%s\"", path, path);
+    if (mciSendStringA(cmd, NULL, 0, NULL) != 0) return; // Si no existe el archivo, sale
+
+    // 3. Ajustar volumen (Escala MCI 0-1000)
     snprintf(cmd, sizeof(cmd), "setaudio \"%s\" volume to %d", path, volume * 10);
     mciSendStringA(cmd, NULL, 0, NULL);
 
-    // Reproducir
+    // 4. Reproducir
     if (loop) {
         snprintf(cmd, sizeof(cmd), "play \"%s\" repeat", path);
     } else {
         snprintf(cmd, sizeof(cmd), "play \"%s\" from 0", path);
     }
+    
     mciSendStringA(cmd, NULL, 0, NULL);
 }
 
@@ -421,8 +458,14 @@ bool CheckCollision(Rect a, Rect b) {
 }
 
 HBITMAP LoadBitmapFromFile(const char* filename) {
-    return (HBITMAP)LoadImageA(NULL, filename, IMAGE_BITMAP, 0, 0,
-                               LR_LOADFROMFILE | LR_CREATEDIBSECTION);
+    // 1. Intenta cargar desde archivo real
+    HBITMAP bmp = (HBITMAP)LoadImageA(NULL, filename, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE | LR_CREATEDIBSECTION);
+    
+    // 2. Si falla, lo busca dentro del ejecutable (recurso)
+    if (!bmp) {
+        bmp = (HBITMAP)LoadImageA(GetModuleHandleA(NULL), filename, IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION);
+    }
+    return bmp;
 }
 
 void DrawBitmap(HBITMAP bmp, int x, int y, COLORREF transparentColor) {
@@ -510,10 +553,8 @@ int tiny2D_Run(int width, int height, const char* title) {
     // 5. Dibujar
     EndDrawing();
     Sleep(1);
-}
-
+    }
 salir:
     CloseWindow();
     return 0;
 }
-
