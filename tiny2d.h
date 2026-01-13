@@ -468,7 +468,7 @@ HBITMAP LoadBitmapFromFile(const char* filename) {
     return bmp;
 }
 
-void DrawBitmap(HBITMAP bmp, int x, int y, COLORREF transparentColor, bool flipH, bool flipV) {
+void DrawBitmap(HBITMAP bmp, int x, int y, COLORREF transparentColor) {
     if (!bmp) return;
     
     HDC hdcMem = CreateCompatibleDC(hdcBuffer);
@@ -477,21 +477,15 @@ void DrawBitmap(HBITMAP bmp, int x, int y, COLORREF transparentColor, bool flipH
     BITMAP bm; 
     GetObject(bmp, sizeof(bm), &bm);
 
-    // Calculamos las dimensiones y posiciones según el flip
-    int finalX = flipH ? (x + bm.bmWidth) : x;
-    int finalW = flipH ? -bm.bmWidth : bm.bmWidth;
-    
-    int finalY = flipV ? (y + bm.bmHeight) : y;
-    int finalH = flipV ? -bm.bmHeight : bm.bmHeight;
-
-    TransparentBlt(hdcBuffer, finalX, finalY, finalW, finalH, 
+    // Dibujamos 1:1 ignorando el color elegido
+    TransparentBlt(hdcBuffer, x, y, bm.bmWidth, bm.bmHeight, 
                    hdcMem, 0, 0, bm.bmWidth, bm.bmHeight, transparentColor);
 
     SelectObject(hdcMem, old); 
     DeleteDC(hdcMem);
 }
 
-void DrawBitmapScaled(HBITMAP bmp, int x, int y, int w, int h, COLORREF transparentColor, bool flipH, bool flipV) {
+void DrawBitmapScaled(HBITMAP bmp, int x, int y, int w, int h, COLORREF transparentColor) {
     if (!bmp) return;
     
     HDC hdcMem = CreateCompatibleDC(hdcBuffer);
@@ -500,18 +494,11 @@ void DrawBitmapScaled(HBITMAP bmp, int x, int y, int w, int h, COLORREF transpar
     BITMAP bm; 
     GetObject(bmp, sizeof(bm), &bm);
 
-    // Evita el aliasing/pixelado extraño al escalar
+    // Evita que se vea borroso al estirar
     SetStretchBltMode(hdcBuffer, COLORONCOLOR);
 
-    // Lógica de Flip para escalado
-    int finalX = flipH ? (x + w) : x;
-    int finalW = flipH ? -w : w;
-    
-    int finalY = flipV ? (y + h) : y;
-    int finalH = flipV ? -h : h;
-
-    // Estiramos desde el tamaño original (bmWidth/Height) al tamaño destino (finalW/H)
-    TransparentBlt(hdcBuffer, finalX, finalY, finalW, finalH, 
+    // Dibujamos al tamaño (w, h) ignorando el color elegido
+    TransparentBlt(hdcBuffer, x, y, w, h, 
                    hdcMem, 0, 0, bm.bmWidth, bm.bmHeight, transparentColor);
 
     SelectObject(hdcMem, old); 
