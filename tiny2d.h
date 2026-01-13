@@ -23,6 +23,8 @@ static HBITMAP hbmBuffer = NULL;
 static int screenWidth = 640, screenHeight = 480;
 static bool shouldClose = false;
 static bool keys[256] = {0};
+static bool prevKeys[256] = {0};
+static bool isFullscreen = false;
 
 // --- Hooks del usuario ---
 extern bool tiny2D_Update(float dt);
@@ -53,6 +55,122 @@ void InitWindow(int width, int height, const char* title) {
     hdcWindow = GetDC(hwnd); hdcBuffer = CreateCompatibleDC(hdcWindow);
     hbmBuffer = CreateCompatibleBitmap(hdcWindow, width, height);
     SelectObject(hdcBuffer, hbmBuffer);
+}
+
+void ConfigureWindow(bool allowClose, bool allowMinimize, bool allowMaximize, int startState)
+{
+    if (!hwnd) return;
+
+    LONG style = GetWindowLongA(hwnd, GWL_STYLE);
+
+    // Botón cerrar (forma parte de WS_SYSMENU)
+    if (allowClose)
+        style |= WS_SYSMENU;
+    else
+        style &= ~WS_SYSMENU;
+
+    // Botón minimizar
+    if (allowMinimize)
+        style |= WS_MINIMIZEBOX;
+    else
+        style &= ~WS_MINIMIZEBOX;
+
+    // Botón maximizar
+    if (allowMaximize)
+        style |= WS_MAXIMIZEBOX;
+    else
+        style &= ~WS_MAXIMIZEBOX;
+
+    // Aplicar cambios
+    SetWindowLongA(hwnd, GWL_STYLE, style);
+    SetWindowPos(hwnd, NULL, 0, 0, 0, 0,
+        SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+
+    // Estado inicial
+    switch (startState) {
+        case 1: ShowWindow(hwnd, SW_SHOWMAXIMIZED); break;
+        case 2: ShowWindow(hwnd, SW_SHOWMINIMIZED); break;
+        default: ShowWindow(hwnd, SW_SHOWNORMAL); break;
+    }
+}
+
+void SetFullscreen(bool enabled)
+{
+    if (!hwnd) return;
+
+    static RECT windowedRect = {0};
+
+    if (enabled && !isFullscreen)
+    {
+        // Guardar tamaño original
+        GetWindowRect(hwnd, &windowedRect);
+
+        // Quitar bordes
+        LONG style = GetWindowLongA(hwnd, GWL_STYLE);
+        style &= ~(WS_OVERLAPPEDWINDOW);
+        style |= WS_POPUP;
+        SetWindowLongA(hwnd, GWL_STYLE, style);
+
+        // Obtener monitor actual
+        HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        MONITORINFO mi = { sizeof(mi) };
+        GetMonitorInfoA(monitor, &mi);
+
+        // Redimensionar ventana al monitor
+        SetWindowPos(hwnd, NULL,
+            mi.rcMonitor.left, mi.rcMonitor.top,
+            mi.rcMonitor.right - mi.rcMonitor.left,
+            mi.rcMonitor.bottom - mi.rcMonitor.top,
+            SWP_NOZORDER | SWP_FRAMECHANGED);
+
+        // Actualizar tamaño interno
+        screenWidth  = mi.rcMonitor.right  - mi.rcMonitor.left;
+        screenHeight = mi.rcMonitor.bottom - mi.rcMonitor.top;
+
+        // Recrear backbuffer
+        DeleteObject(hbmBuffer);
+        hbmBuffer = CreateCompatibleBitmap(hdcWindow, screenWidth, screenHeight);
+        SelectObject(hdcBuffer, hbmBuffer);
+
+        // Forzar focus
+        SetForegroundWindow(hwnd);
+        SetFocus(hwnd);
+
+        isFullscreen = true;
+    }
+    else if (!enabled && isFullscreen)
+    {
+        // Restaurar estilo
+        LONG style = GetWindowLongA(hwnd, GWL_STYLE);
+        style &= ~(WS_POPUP);
+        style |= WS_OVERLAPPEDWINDOW;
+        SetWindowLongA(hwnd, GWL_STYLE, style);
+
+        // Restaurar tamaño original
+        SetWindowPos(hwnd, NULL,
+            windowedRect.left, windowedRect.top,
+            windowedRect.right - windowedRect.left,
+            windowedRect.bottom - windowedRect.top,
+            SWP_NOZORDER | SWP_FRAMECHANGED);
+
+        // Actualizar tamaño interno
+        screenWidth  = windowedRect.right  - windowedRect.left;
+        screenHeight = windowedRect.bottom - windowedRect.top;
+
+        // Recrear backbuffer
+        DeleteObject(hbmBuffer);
+        hbmBuffer = CreateCompatibleBitmap(hdcWindow, screenWidth, screenHeight);
+        SelectObject(hdcBuffer, hbmBuffer);
+
+        SetForegroundWindow(hwnd);
+        SetFocus(hwnd);
+
+        isFullscreen = false;
+    }
+}
+
+bool IsFullscreen() {
+    return isFullscreen;
 }
 
 void CloseWindow() {
@@ -96,6 +214,14 @@ void DrawCircle(int cx, int cy, int radius, COLORREF color) {
 
 // --- Input ---
 bool IsKeyDown(int vk_code) { return keys[vk_code & 0xFF]; }
+bool IsKeyPressed(int vk) {
+    vk &= 0xFF;
+    return keys[vk] && !prevKeys[vk];
+}
+bool IsKeyReleased(int vk) {
+    vk &= 0xFF;
+    return !keys[vk] && prevKeys[vk];
+}
 bool IsMouseButtonDown(int button) { return (GetAsyncKeyState(button) & 0x8000) != 0; }
 int GetMouseX() { POINT p; GetCursorPos(&p); ScreenToClient(hwnd, &p); return p.x; }
 int GetMouseY() { POINT p; GetCursorPos(&p); ScreenToClient(hwnd, &p); return p.y; }
@@ -134,29 +260,36 @@ int tiny2D_Run(int width, int height, const char* title) {
     float accumulator = 0.0f;
 
     while (!WindowShouldClose()) {
-        // Procesar mensajes primero
-        MSG msg;
-        while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
-            TranslateMessage(&msg); DispatchMessage(&msg);
-        }
 
-        // Calcular dt
-        QueryPerformanceCounter(&t2);
-        float dt = (float)(t2.QuadPart - t1.QuadPart) / freq.QuadPart;
-        if (dt > 0.1f) dt = 0.1f;
-        t1 = t2;
-        accumulator += dt;
+    // 1. Guardar estado anterior ANTES de procesar mensajes
+    for (int i = 0; i < 256; i++)
+        prevKeys[i] = keys[i];
 
-        // Simular a pasos fijos
-        while (accumulator >= frameTime) {
-            if (!tiny2D_Update(frameTime)) goto salir;
-            accumulator -= frameTime;
-        }
-
-        BeginDrawing();
-        EndDrawing();
-        Sleep(1);
+    // 2. Procesar mensajes (esto actualiza keys[])
+    MSG msg;
+    while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
     }
+
+    // 3. Calcular dt
+    QueryPerformanceCounter(&t2);
+    float dt = (float)(t2.QuadPart - t1.QuadPart) / freq.QuadPart;
+    if (dt > 0.1f) dt = 0.1f;
+    t1 = t2;
+    accumulator += dt;
+
+    // 4. Simular
+    while (accumulator >= frameTime) {
+        if (!tiny2D_Update(frameTime)) goto salir;
+        accumulator -= frameTime;
+    }
+
+    // 5. Dibujar
+    BeginDrawing();
+    EndDrawing();
+    Sleep(1);
+}
 
 salir:
     CloseWindow();
