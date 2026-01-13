@@ -1,6 +1,6 @@
 /*
-PD: No mantengas la licencia en tu código abierto, aquí la dejo para que no necesites añadirla a mano.
-PS: No keep the license in your open source code, here I leave it so you don't need to add it manually.
+PD: No mantengas la licencia en tu código fuente, aquí la dejo para que no necesites añadirla a mano.
+PS: No keep the license in your source code, here I leave it so you don't need to add it manually.
 
 Copyright 2026 AREStudio
 
@@ -516,3 +516,4 @@ salir:
     CloseWindow();
     return 0;
 }
+
