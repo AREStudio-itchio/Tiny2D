@@ -393,27 +393,38 @@ HBITMAP LoadBitmapFromFile(const char* filename) {
                                LR_LOADFROMFILE | LR_CREATEDIBSECTION);
 }
 
-void DrawBitmap(HBITMAP bmp, int x, int y) {
+void DrawBitmap(HBITMAP bmp, int x, int y, COLORREF transparentColor) {
     if (!bmp) return;
-    HDC hdcMem = CreateCompatibleDC(hdcBuffer);
-    HBITMAP old = (HBITMAP)SelectObject(hdcMem, bmp);
-    BITMAP bm; GetObject(bmp, sizeof(bm), &bm);
-    BitBlt(hdcBuffer, x, y, bm.bmWidth, bm.bmHeight, hdcMem, 0, 0, SRCCOPY);
-    SelectObject(hdcMem, old); DeleteDC(hdcMem);
-}
-
-void DrawBitmapScaled(HBITMAP bmp, int x, int y, int w, int h) {
-    if (!bmp) return; // Seguridad: si la imagen no existe, no hacemos nada
     
-    HDC hdcMem = CreateCompatibleDC(hdcBuffer); // Creamos un espacio en memoria
+    HDC hdcMem = CreateCompatibleDC(hdcBuffer);
     HBITMAP old = (HBITMAP)SelectObject(hdcMem, bmp);
     
     BITMAP bm; 
-    GetObject(bmp, sizeof(bm), &bm); // Obtenemos el tamaño original de la imagen
+    GetObject(bmp, sizeof(bm), &bm);
 
-    // ¡Aquí está la magia! StretchBlt estira la imagen al tamaño que tú quieras
-    SetStretchBltMode(hdcBuffer, HALFTONE); // Para que no se vea tan pixelado al escalar
-    StretchBlt(hdcBuffer, x, y, w, h, hdcMem, 0, 0, bm.bmWidth, bm.bmHeight, SRCCOPY);
+    // Dibujamos 1:1 ignorando el color elegido
+    TransparentBlt(hdcBuffer, x, y, bm.bmWidth, bm.bmHeight, 
+                   hdcMem, 0, 0, bm.bmWidth, bm.bmHeight, transparentColor);
+
+    SelectObject(hdcMem, old); 
+    DeleteDC(hdcMem);
+}
+
+void DrawBitmapScaled(HBITMAP bmp, int x, int y, int w, int h, COLORREF transparentColor) {
+    if (!bmp) return;
+    
+    HDC hdcMem = CreateCompatibleDC(hdcBuffer);
+    HBITMAP old = (HBITMAP)SelectObject(hdcMem, bmp);
+    
+    BITMAP bm; 
+    GetObject(bmp, sizeof(bm), &bm);
+
+    // Evita que se vea borroso al estirar
+    SetStretchBltMode(hdcBuffer, COLORONCOLOR);
+
+    // Dibujamos al tamaño (w, h) ignorando el color elegido
+    TransparentBlt(hdcBuffer, x, y, w, h, 
+                   hdcMem, 0, 0, bm.bmWidth, bm.bmHeight, transparentColor);
 
     SelectObject(hdcMem, old); 
     DeleteDC(hdcMem);
