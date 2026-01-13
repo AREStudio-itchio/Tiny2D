@@ -1,8 +1,8 @@
 # 🚀 tiny2D — Manual de Referencia / Reference Manual
 
-PD: Si tu compilarás sin consola, recuerda usar: int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd), en vez del int main() tradicional.
+PD: Si tu compilarás sin consola, recuerda usar: int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd), en vez del int main() tradicional. Usa -lgdi32 -luser32 -lwinmm -mwindows -lmsimg32 para compilar con MSYS2.
 
-PS: If you will compile without a console, remember to use: int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd), instead of the traditional int main().
+PS: If you will compile without a console, remember to use: int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd), instead of the traditional int main(). Use -lgdi32 -luser32 -lwinmm -mwindows -lmsimg32 to compile with MSYS2.
 
 **tiny2D** es un motor gráfico 2D minimalista y autocontenido para **Windows**, escrito en **C/C++**. Está diseñado para ser extremadamente simple, reproducible y sin dependencias externas, permitiendo el control total sobre el código en un solo archivo `.h`.
 
