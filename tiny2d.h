@@ -88,3 +88,4 @@ int main() {
     // Resolución y título / Resolution and title
     return tiny2D_Run(800, 600, "Proyecto - AREStudio");
 }
+
