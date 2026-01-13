@@ -48,6 +48,18 @@ void DrawText2D(const char* text, int x, int y, COLORREF textColor);
 bool IsPlayingSound2D(const char* path);
 void PlaySound2D(const char* path, int volume, bool loop);
 void TogglePauseSound2D(const char* path);
+int RandIntRange(int min, int max);
+float RandFloatRange(float min, float max);
+
+int RandIntRange(int min, int max) {
+    if (min > max) return min;
+    return min + (rand() % (max - min + 1));
+}
+
+float RandFloatRange(float min, float max) {
+    float random = ((float)rand()) / (float)RAND_MAX;
+    return min + random * (max - min);
+}
 
 void ClearBackground(COLORREF c) {
     HBRUSH brush = CreateSolidBrush(c);
