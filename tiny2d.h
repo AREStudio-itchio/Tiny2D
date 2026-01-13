@@ -50,6 +50,8 @@ void PlaySound2D(const char* path, int volume, bool loop);
 void TogglePauseSound2D(const char* path);
 int RandIntRange(int min, int max);
 float RandFloatRange(float min, float max);
+void DrawBitmap(HBITMAP bmp, int x, int y);
+void DrawBitmapScaled(HBITMAP bmp, int x, int y, int w, int h);
 
 int RandIntRange(int min, int max) {
     if (min > max) return min;
@@ -398,6 +400,23 @@ void DrawBitmap(HBITMAP bmp, int x, int y) {
     BITMAP bm; GetObject(bmp, sizeof(bm), &bm);
     BitBlt(hdcBuffer, x, y, bm.bmWidth, bm.bmHeight, hdcMem, 0, 0, SRCCOPY);
     SelectObject(hdcMem, old); DeleteDC(hdcMem);
+}
+
+void DrawBitmapScaled(HBITMAP bmp, int x, int y, int w, int h) {
+    if (!bmp) return; // Seguridad: si la imagen no existe, no hacemos nada
+    
+    HDC hdcMem = CreateCompatibleDC(hdcBuffer); // Creamos un espacio en memoria
+    HBITMAP old = (HBITMAP)SelectObject(hdcMem, bmp);
+    
+    BITMAP bm; 
+    GetObject(bmp, sizeof(bm), &bm); // Obtenemos el tamaño original de la imagen
+
+    // ¡Aquí está la magia! StretchBlt estira la imagen al tamaño que tú quieras
+    SetStretchBltMode(hdcBuffer, HALFTONE); // Para que no se vea tan pixelado al escalar
+    StretchBlt(hdcBuffer, x, y, w, h, hdcMem, 0, 0, bm.bmWidth, bm.bmHeight, SRCCOPY);
+
+    SelectObject(hdcMem, old); 
+    DeleteDC(hdcMem);
 }
 
 // --- Punto de entrada universal ---
