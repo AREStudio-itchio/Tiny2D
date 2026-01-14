@@ -158,43 +158,6 @@ void InitWindow(int w, int h, const char* t) {
     ShowWindow(hwnd, SW_SHOW);
 }
 
-void ConfigureWindow(bool allowClose, bool allowMinimize, bool allowMaximize, int startState)
-{
-    if (!hwnd) return;
-
-    LONG style = GetWindowLongA(hwnd, GWL_STYLE);
-
-    // Botón cerrar (forma parte de WS_SYSMENU)
-    if (allowClose)
-        style |= WS_SYSMENU;
-    else
-        style &= ~WS_SYSMENU;
-
-    // Botón minimizar
-    if (allowMinimize)
-        style |= WS_MINIMIZEBOX;
-    else
-        style &= ~WS_MINIMIZEBOX;
-
-    // Botón maximizar
-    if (allowMaximize)
-        style |= WS_MAXIMIZEBOX;
-    else
-        style &= ~WS_MAXIMIZEBOX;
-
-    // Aplicar cambios
-    SetWindowLongA(hwnd, GWL_STYLE, style);
-    SetWindowPos(hwnd, NULL, 0, 0, 0, 0,
-        SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
-
-    // Estado inicial
-    switch (startState) {
-        case 1: ShowWindow(hwnd, SW_SHOWMAXIMIZED); break;
-        case 2: ShowWindow(hwnd, SW_SHOWMINIMIZED); break;
-        default: ShowWindow(hwnd, SW_SHOWNORMAL); break;
-    }
-}
-
 void SetFullscreen(bool enable)
 {
     if (!hwnd) return;
@@ -202,10 +165,7 @@ void SetFullscreen(bool enable)
 
     if (enable)
     {
-        DeleteObject(hbmBuffer);
-        hbmBuffer = CreateCompatibleBitmap(hdcWindow, baseWidth, baseHeight);
-        SelectObject(hdcBuffer, hbmBuffer);
-        // Guardar ventana original
+        // Guardar posición y tamaño actuales
         RECT rect;
         GetWindowRect(hwnd, &rect);
         windowedX = rect.left;
@@ -213,7 +173,7 @@ void SetFullscreen(bool enable)
         windowedW = rect.right - rect.left;
         windowedH = rect.bottom - rect.top;
 
-        // Tamaño del monitor
+        // Obtener tamaño del monitor
         HMONITOR mon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
         MONITORINFO mi = { sizeof(mi) };
         GetMonitorInfo(mon, &mi);
@@ -221,43 +181,40 @@ void SetFullscreen(bool enable)
         int mw = mi.rcMonitor.right - mi.rcMonitor.left;
         int mh = mi.rcMonitor.bottom - mi.rcMonitor.top;
 
-        // Ajustar para que el área cliente sea EXACTA
-        RECT wanted = { 0, 0, mw, mh };
-        AdjustWindowRectEx(&wanted, WS_POPUP, FALSE, 0);
-
-        int winW = wanted.right - wanted.left;
-        int winH = wanted.bottom - wanted.top;
-
-        // Cambiar estilo y aplicar tamaño exacto
+        // Cambiar estilo a fullscreen sin bordes
         SetWindowLong(hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
-        SetWindowPos(hwnd, HWND_TOP,
-                     mi.rcMonitor.left + wanted.left,
-                     mi.rcMonitor.top + wanted.top,
-                     winW, winH,
-                     SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+        SetWindowPos(hwnd, HWND_TOP, mi.rcMonitor.left, mi.rcMonitor.top, mw, mh, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
 
         screenWidth = mw;
         screenHeight = mh;
-
         isFullscreen = true;
     }
     else
     {
-        DeleteObject(hbmBuffer);
-        hbmBuffer = CreateCompatibleBitmap(hdcWindow, baseWidth, baseHeight);
-        SelectObject(hdcBuffer, hbmBuffer);
-        // Volver a ventana normal
+        // Restaurar estilo de ventana con bordes
         SetWindowLong(hwnd, GWL_STYLE, WS_OVERLAPPEDWINDOW | WS_VISIBLE);
-        SetWindowPos(hwnd, HWND_TOP,
-                     windowedX, windowedY,
-                     windowedW, windowedH,
-                     SWP_FRAMECHANGED | SWP_SHOWWINDOW);
 
-        screenWidth = windowedW;
-        screenHeight = windowedH;
+        // Calcular tamaño de ventana para que el cliente sea baseWidth/baseHeight
+        RECT rect = { 0, 0, baseWidth, baseHeight };
+        AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, FALSE);
 
+        int winW = rect.right - rect.left;
+        int winH = rect.bottom - rect.top;
+
+        SetWindowPos(hwnd, HWND_TOP, windowedX, windowedY, winW, winH, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+
+        screenWidth = baseWidth;
+        screenHeight = baseHeight;
         isFullscreen = false;
     }
+
+    // Recrear buffer con tamaño actual
+    int bufferW = screenWidth;
+    int bufferH = screenHeight;
+
+    DeleteObject(hbmBuffer);
+    hbmBuffer = CreateCompatibleBitmap(hdcWindow, bufferW, bufferH);
+    SelectObject(hdcBuffer, hbmBuffer);
 }
 
 bool IsFullscreen() {
