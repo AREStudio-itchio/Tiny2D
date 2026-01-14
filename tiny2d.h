@@ -84,7 +84,9 @@ int RandIntRange(int min, int max);
 float RandFloatRange(float min, float max);
 void DrawBitmap(HBITMAP bmp, int x, int y);
 void DrawBitmapScaled(HBITMAP bmp, int x, int y, int w, int h);
-
+void SaveVarIntoFile(const char* path, void* data, size_t size);
+template <typename T, typename S>
+T LoadSaveFile(const char* path, S& estructuraBase, T& llave);
 static bool ExtractResourceToFile(const char* resourceName, const char* outPath) {
     HRSRC hRes = FindResourceA(GetModuleHandleA(NULL), resourceName, (LPCSTR)RT_RCDATA);
     if (!hRes) return false;
@@ -455,6 +457,34 @@ int GetMouseY() { POINT p; GetCursorPos(&p); ScreenToClient(hwnd, &p); return p.
 bool CheckCollision(Rect a, Rect b) {
     return (a.x < b.x + b.w && a.x + a.w > b.x &&
             a.y < b.y + b.h && a.y + a.h > b.y);
+}
+
+// --- SISTEMA DE GUARDADO AREStudio ---
+
+// Guarda el struct completo en el archivo
+void SaveVarIntoFile(const char* path, void* data, size_t size) {
+    FILE* file = fopen(path, "wb");
+    if (file) {
+        fwrite(data, size, 1, file);
+        fclose(file);
+    }
+}
+
+// Carga el archivo y devuelve el valor de la "llave" (variable) que elijas
+template <typename T, typename S>
+T LoadSaveFile(const char* path, S& estructuraBase, T& llave) {
+    T valorLeido = 0;
+    
+    // Calculamos el "salto" (offset) automáticamente comparando direcciones de memoria
+    size_t salto = (size_t)&llave - (size_t)&estructuraBase;
+
+    FILE* file = fopen(path, "rb");
+    if (file) {
+        fseek(file, (long)salto, SEEK_SET); // Saltamos a la posición de la llave
+        fread(&valorLeido, sizeof(T), 1, file);
+        fclose(file);
+    }
+    return valorLeido; // ¡Aquí tienes tu valor devuelto!
 }
 
 HBITMAP LoadBitmapFromFile(const char* filename) {
